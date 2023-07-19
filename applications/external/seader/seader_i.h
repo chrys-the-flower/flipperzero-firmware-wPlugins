@@ -12,7 +12,7 @@
 #include <gui/view_dispatcher.h>
 #include <gui/scene_manager.h>
 #include <notification/notification_messages.h>
-#include <seader_icons.h>
+#include "seader_icons.h"
 
 #include <gui/modules/submenu.h>
 #include <gui/modules/popup.h>
@@ -33,8 +33,9 @@
 #include <FrameProtocol.h>
 
 #include "scenes/seader_scene.h"
+#include "views/seader_uart_view.h"
 
-#include "sub.h"
+#include "seader_bridge.h"
 #include "seader.h"
 #include "ccid.h"
 #include "uart.h"
@@ -75,6 +76,7 @@ typedef enum {
 
 struct Seader {
     bool revert_power;
+    bool is_debug_enabled;
     SeaderWorker* worker;
     ViewDispatcher* view_dispatcher;
     Gui* gui;
@@ -92,6 +94,9 @@ struct Seader {
     Loading* loading;
     TextInput* text_input;
     Widget* widget;
+
+    //Custom views
+    SeaderUartView* seader_uart_view;
 };
 
 typedef enum {
@@ -100,6 +105,7 @@ typedef enum {
     SeaderViewLoading,
     SeaderViewTextInput,
     SeaderViewWidget,
+    SeaderViewUart,
 } SeaderView;
 
 void seader_text_store_set(Seader* seader, const char* text, ...);

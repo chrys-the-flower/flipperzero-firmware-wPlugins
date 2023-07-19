@@ -47,6 +47,7 @@ SeaderWorker* seader_worker_alloc() {
     seader_worker->callback = NULL;
     seader_worker->context = NULL;
     seader_worker->storage = furi_record_open(RECORD_STORAGE);
+    memset(seader_worker->sam_version, 0, sizeof(seader_worker->sam_version));
 
     seader_worker_change_state(seader_worker, SeaderWorkerStateReady);
 
@@ -161,7 +162,6 @@ bool mf_df_check_card_type(uint8_t ATQA0, uint8_t ATQA1, uint8_t SAK) {
 }
 
 bool mf_classic_check_card_type(uint8_t ATQA0, uint8_t ATQA1, uint8_t SAK) {
-    UNUSED(ATQA1);
     if((ATQA0 == 0x44 || ATQA0 == 0x04) && (SAK == 0x08 || SAK == 0x88 || SAK == 0x09)) {
         return true;
     } else if((ATQA0 == 0x01) && (ATQA1 == 0x0F) && (SAK == 0x01)) {
@@ -310,6 +310,27 @@ void sendRequestPacs(SeaderUartBridge* seader_uart) {
     ASN_STRUCT_FREE(asn_DEF_Payload, payload);
 }
 
+void seader_worker_send_version(SeaderWorker* seader_worker) {
+    SeaderUartBridge* seader_uart = seader_worker->uart;
+    SamCommand_t* samCommand = 0;
+    samCommand = calloc(1, sizeof *samCommand);
+    assert(samCommand);
+
+    samCommand->present = SamCommand_PR_version;
+
+    Payload_t* payload = 0;
+    payload = calloc(1, sizeof *payload);
+    assert(payload);
+
+    payload->present = Payload_PR_samCommand;
+    payload->choice.samCommand = *samCommand;
+
+    sendPayload(seader_uart, payload, 0x44, 0x0a, 0x44);
+
+    ASN_STRUCT_FREE(asn_DEF_SamCommand, samCommand);
+    ASN_STRUCT_FREE(asn_DEF_Payload, payload);
+}
+
 void sendCardDetected(SeaderUartBridge* seader_uart, CardDetails_t* cardDetails) {
     CardDetected_t* cardDetected = 0;
     cardDetected = calloc(1, sizeof *cardDetected);
@@ -338,7 +359,11 @@ void sendCardDetected(SeaderUartBridge* seader_uart, CardDetails_t* cardDetails)
     ASN_STRUCT_FREE(asn_DEF_Payload, payload);
 }
 
-bool unpack_pacs(SeaderCredential* seader_credential, uint8_t* buf, size_t size) {
+bool unpack_pacs(
+    SeaderWorker* seader_worker,
+    SeaderCredential* seader_credential,
+    uint8_t* buf,
+    size_t size) {
     PAC_t* pac = 0;
     pac = calloc(1, sizeof *pac);
     assert(pac);
@@ -351,20 +376,73 @@ bool unpack_pacs(SeaderCredential* seader_credential, uint8_t* buf, size_t size)
         (&asn_DEF_PAC)->op->print_struct(&asn_DEF_PAC, pac, 1, toString, pacDebug);
         if(strlen(pacDebug) > 0) {
             FURI_LOG_D(TAG, "Received pac: %s", pacDebug);
+
+            memset(display, 0, sizeof(display));
+            if(seader_credential->sio[0] == 0x30) {
+                for(uint8_t i = 0; i < sizeof(seader_credential->sio); i++) {
+                    snprintf(
+                        display + (i * 2), sizeof(display), "%02x", seader_credential->sio[i]);
+                }
+                FURI_LOG_D(TAG, "SIO %s", display);
+            }
         }
 
         if(pac->size <= sizeof(seader_credential->credential)) {
+            // TODO: make credential into a 12 byte array
             seader_credential->bit_length = pac->size * 8 - pac->bits_unused;
             memcpy(&seader_credential->credential, pac->buf, pac->size);
             seader_credential->credential = __builtin_bswap64(seader_credential->credential);
             seader_credential->credential = seader_credential->credential >>
                                             (64 - seader_credential->bit_length);
             rtn = true;
+        } else {
+            // PACS too big (probably bad data)
+            if(seader_worker->callback) {
+                seader_worker->callback(SeaderWorkerEventFail, seader_worker->context);
+            }
         }
-        // TODO: make credential into a 12 byte array
     }
 
     ASN_STRUCT_FREE(asn_DEF_PAC, pac);
+    return rtn;
+}
+
+//    800201298106683d052026b6820101
+//300F800201298106683D052026B6820101
+bool parseVersion(SeaderWorker* seader_worker, uint8_t* buf, size_t size) {
+    SamVersion_t* version = 0;
+    version = calloc(1, sizeof *version);
+    assert(version);
+
+    bool rtn = false;
+    if(size > 30) {
+        // Too large to handle now
+        FURI_LOG_W(TAG, "Version of %d is to long to parse", size);
+        return false;
+    }
+    // Add sequence prefix
+    uint8_t seq[32] = {0x30};
+    seq[1] = (uint8_t)size;
+    memcpy(seq + 2, buf, size);
+
+    asn_dec_rval_t rval =
+        asn_decode(0, ATS_DER, &asn_DEF_SamVersion, (void**)&version, seq, size + 2);
+
+    if(rval.code == RC_OK) {
+        char versionDebug[128] = {0};
+        (&asn_DEF_SamVersion)
+            ->op->print_struct(&asn_DEF_SamVersion, version, 1, toString, versionDebug);
+        if(strlen(versionDebug) > 0) {
+            FURI_LOG_D(TAG, "Received version: %s", versionDebug);
+        }
+        if(version->version.size == 2) {
+            memcpy(seader_worker->sam_version, version->version.buf, version->version.size);
+        }
+
+        rtn = true;
+    }
+
+    ASN_STRUCT_FREE(asn_DEF_SamVersion, version);
     return rtn;
 }
 
@@ -383,7 +461,9 @@ bool parseSamResponse(SeaderWorker* seader_worker, SamResponse_t* samResponse) {
                 seader_worker->callback(SeaderWorkerEventFail, seader_worker->context);
             }
         }
-    } else if(unpack_pacs(credential, samResponse->buf, samResponse->size)) {
+    } else if(parseVersion(seader_worker, samResponse->buf, samResponse->size)) {
+        // no-op
+    } else if(unpack_pacs(seader_worker, credential, samResponse->buf, samResponse->size)) {
         if(seader_worker->callback) {
             seader_worker->callback(SeaderWorkerEventSuccess, seader_worker->context);
         }
@@ -467,8 +547,26 @@ bool iso14443aTransmit(SeaderWorker* seader_worker, uint8_t* buffer, size_t len)
     return false;
 }
 
+uint8_t read4Block6[] = {0x06, 0x06, 0x45, 0x56};
+uint8_t read4Block9[] = {0x06, 0x09, 0xB2, 0xAE};
+uint8_t read4Block10[] = {0x06, 0x0A, 0x29, 0x9C};
+uint8_t read4Block13[] = {0x06, 0x0D, 0x96, 0xE8};
+
+void handleSIO(uint8_t* buffer, size_t len, uint8_t* rxBuffer, SeaderCredential* credential) {
+    if(memcmp(buffer, read4Block6, len) == 0 && rxBuffer[0] == 0x30) {
+        memcpy(credential->sio, rxBuffer, 32);
+    } else if(memcmp(buffer, read4Block10, len) == 0 && rxBuffer[0] == 0x30) {
+        memcpy(credential->sio, rxBuffer, 32);
+    } else if(memcmp(buffer, read4Block9, len) == 0) {
+        memcpy(credential->sio + 32, rxBuffer + 8, 24);
+    } else if(memcmp(buffer, read4Block13, len) == 0) {
+        memcpy(credential->sio + 32, rxBuffer + 8, 24);
+    }
+}
+
 bool iso15693Transmit(SeaderWorker* seader_worker, uint8_t* buffer, size_t len) {
     SeaderUartBridge* seader_uart = seader_worker->uart;
+    SeaderCredential* credential = seader_worker->credential;
     char display[SEADER_UART_RX_BUF_SIZE * 2 + 1] = {0};
     FuriHalNfcReturn ret;
     uint16_t recvLen = 0;
@@ -484,6 +582,7 @@ bool iso15693Transmit(SeaderWorker* seader_worker, uint8_t* buffer, size_t len) 
             snprintf(display + (i * 2), sizeof(display), "%02x", rxBuffer[i]);
         }
         // FURI_LOG_D(TAG, "Result %d %s", recvLen, display);
+        handleSIO(buffer, len, rxBuffer, credential);
 
         sendNFCRx(seader_uart, rxBuffer, recvLen);
     } else if(ret == FuriHalNfcReturnCrc) {
@@ -492,9 +591,11 @@ bool iso15693Transmit(SeaderWorker* seader_worker, uint8_t* buffer, size_t len) 
             snprintf(display + (i * 2), sizeof(display), "%02x", rxBuffer[i]);
         }
         // FURI_LOG_D(TAG, "[CRC error] Result %d %s", recvLen, display);
+        handleSIO(buffer, len, rxBuffer, credential);
 
         sendNFCRx(seader_uart, rxBuffer, recvLen);
 
+        // Act as if it was OK
         return true;
     } else {
         FURI_LOG_E(TAG, "furi_hal_nfc_ll_txrx Error %d", ret);
@@ -664,7 +765,9 @@ bool processAPDU(SeaderWorker* seader_worker, uint8_t* apdu, size_t len) {
     return false;
 }
 
-ReturnCode picopass_card_init(SeaderUartBridge* seader_uart) {
+ReturnCode picopass_card_init(SeaderWorker* seader_worker) {
+    SeaderUartBridge* seader_uart = seader_worker->uart;
+    SeaderCredential* credential = seader_worker->credential;
     rfalPicoPassIdentifyRes idRes;
     rfalPicoPassSelectRes selRes;
 
@@ -697,6 +800,8 @@ ReturnCode picopass_card_init(SeaderUartBridge* seader_uart) {
     OCTET_STRING_fromBuf(
         &cardDetails->protocol, (const char*)protocolBytes, sizeof(protocolBytes));
     OCTET_STRING_fromBuf(&cardDetails->csn, (const char*)selRes.CSN, RFAL_PICOPASS_MAX_BLOCK_LEN);
+
+    memcpy(credential->diversifier, selRes.CSN, RFAL_PICOPASS_MAX_BLOCK_LEN);
 
     sendCardDetected(seader_uart, cardDetails);
 
@@ -731,13 +836,12 @@ ReturnCode picopass_card_detect() {
 }
 
 ReturnCode picopass_card_read(SeaderWorker* seader_worker) {
-    SeaderUartBridge* seader_uart = seader_worker->uart;
     ReturnCode err = ERR_TIMEOUT;
 
     while(seader_worker->state == SeaderWorkerStateReadPicopass) {
         // Card found
         if(picopass_card_detect() == ERR_NONE) {
-            err = picopass_card_init(seader_uart);
+            err = picopass_card_init(seader_worker);
             if(err != ERR_NONE) {
                 FURI_LOG_E(TAG, "picopass_card_init error %d", err);
             }
@@ -772,12 +876,12 @@ int32_t seader_worker_task(void* context) {
 
     if(seader_worker->state == SeaderWorkerStateCheckSam) {
         furi_delay_ms(1000);
-        FURI_LOG_D(TAG, "PC_to_RDR_GetSlotStatus");
-        PC_to_RDR_GetSlotStatus(seader_uart);
+        check_for_sam(seader_uart);
     } else if(seader_worker->state == SeaderWorkerStateReadPicopass) {
         FURI_LOG_D(TAG, "Read Picopass");
         requestPacs = true;
         seader_credential_clear(seader_worker->credential);
+        seader_worker->credential->type = SeaderCredentialTypePicopass;
         seader_worker_enable_field();
         if(picopass_card_read(seader_worker) != ERR_NONE) {
             // Turn off if cancelled / no card found
@@ -787,6 +891,7 @@ int32_t seader_worker_task(void* context) {
         FURI_LOG_D(TAG, "Read 14a");
         requestPacs = true;
         seader_credential_clear(seader_worker->credential);
+        seader_worker->credential->type = SeaderCredentialType14A;
         nfc_scene_field_on_enter();
         if(!detect_nfc(seader_worker)) {
             // Turn off if cancelled / no card found

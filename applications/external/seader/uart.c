@@ -33,13 +33,14 @@ void seader_uart_serial_deinit(SeaderUartBridge* seader_uart, uint8_t uart_ch) {
 void seader_uart_set_baudrate(SeaderUartBridge* seader_uart, uint32_t baudrate) {
     if(baudrate != 0) {
         furi_hal_uart_set_br(seader_uart->cfg.uart_ch, baudrate);
-        seader_uart->st.baudrate_cur = baudrate;
     } else {
         FURI_LOG_I(TAG, "No baudrate specified");
     }
 }
 
-size_t seader_uart_process_buffer(SeaderWorker* seader_worker, uint8_t* cmd, size_t cmd_len) {
+size_t seader_uart_process_buffer(Seader* seader, uint8_t* cmd, size_t cmd_len) {
+    SeaderWorker* seader_worker = seader->worker;
+    SeaderUartBridge* seader_uart = seader->uart;
     if(cmd_len < 2) {
         return cmd_len;
     }
@@ -54,6 +55,7 @@ size_t seader_uart_process_buffer(SeaderWorker* seader_worker, uint8_t* cmd, siz
             if(cmd_len > 0) {
                 memmove(cmd, cmd + consumed, cmd_len);
             }
+            seader_uart->st.rx_cnt += consumed;
 
             /*
             memset(display, 0, SEADER_UART_RX_BUF_SIZE);
@@ -69,7 +71,6 @@ size_t seader_uart_process_buffer(SeaderWorker* seader_worker, uint8_t* cmd, siz
 
 int32_t seader_uart_worker(void* context) {
     Seader* seader = (Seader*)context;
-    SeaderWorker* seader_worker = seader->worker;
     SeaderUartBridge* seader_uart = seader->uart;
 
     memcpy(&seader_uart->cfg, &seader_uart->cfg_new, sizeof(SeaderUartConfig));
@@ -122,7 +123,7 @@ int32_t seader_uart_worker(void* context) {
 
                 memcpy(cmd + cmd_len, seader_uart->rx_buf, len);
                 cmd_len += len;
-                cmd_len = seader_uart_process_buffer(seader_worker, cmd, cmd_len);
+                cmd_len = seader_uart_process_buffer(seader, cmd, cmd_len);
             }
         }
     }
