@@ -64,12 +64,10 @@ typedef struct {
     volatile SubGhzRegulation regulation;
     volatile FuriHalSubGhzPreset preset;
     const GpioPin* async_mirror_pin;
-    SubGhzRadioType radio_type;
 
-    const GpioPin* cc1101_g0_pin;
     uint8_t rolling_counter_mult;
     bool ext_module_power_disabled : 1;
-    bool timestamp_file_names : 1;
+    bool ext_power_amp : 1;
 } FuriHalSubGhz;
 
 extern volatile FuriHalSubGhz furi_hal_subghz;
@@ -338,6 +336,11 @@ void furi_hal_subghz_stop_async_tx();
 // /** Set what radio module we will be using
 //  */
 // void furi_hal_subghz_select_radio_type(SubGhzRadioType state);
+
+// External CC1101 Ebytes power amplifier control
+void furi_hal_subghz_set_ext_power_amp(bool enabled);
+
+bool furi_hal_subghz_get_ext_power_amp();
 
 #ifdef __cplusplus
 }

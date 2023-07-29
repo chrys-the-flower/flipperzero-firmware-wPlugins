@@ -1,7 +1,7 @@
 #include "bt_type_code.h"
+#include <furi_hal_bt.h>
 #include <furi_hal_bt_hid.h>
 #include <furi_hal_version.h>
-#include <bt/bt_service/bt_i.h>
 #include <furi/core/thread.h>
 #include <furi/core/mutex.h>
 #include <furi/core/string.h>
@@ -17,6 +17,8 @@
 #define TOTP_BT_WORKER_BT_ADV_NAME_MAX_LEN FURI_HAL_BT_ADV_NAME_LENGTH
 #define TOTP_BT_WORKER_BT_MAC_ADDRESS_LEN GAP_MAC_ADDR_SIZE
 #endif
+
+#define HID_BT_KEYS_STORAGE_PATH TOTP_BT_KEYS_STORAGE_PATH
 
 struct TotpBtTypeCodeWorkerContext {
     char* code_buffer;
@@ -46,11 +48,8 @@ static void totp_type_code_worker_bt_set_app_mac(uint8_t* mac) {
     } else {
         max_i = TOTP_BT_WORKER_BT_MAC_ADDRESS_LEN;
     }
-#if TOTP_TARGET_FIRMWARE == TOTP_FIRMWARE_CFW
-    const uint8_t* uid = furi_hal_version_uid_default();
-#else
-    const uint8_t* uid = furi_hal_version_uid();
-#endif
+
+    const uint8_t* uid = (const uint8_t*)UID64_BASE; //-V566
     memcpy(mac, uid, max_i);
     for(uint8_t i = max_i; i < TOTP_BT_WORKER_BT_MAC_ADDRESS_LEN; i++) {
         mac[i] = 0;
@@ -160,7 +159,7 @@ TotpBtTypeCodeWorkerContext* totp_bt_type_code_worker_init() {
     bt_disconnect(context->bt);
     furi_hal_bt_reinit();
     furi_delay_ms(200);
-    bt_keys_storage_set_storage_path(context->bt, TOTP_BT_KEYS_STORAGE_PATH);
+    bt_keys_storage_set_storage_path(context->bt, HID_BT_KEYS_STORAGE_PATH);
 
 #if TOTP_TARGET_FIRMWARE == TOTP_FIRMWARE_CFW
     memcpy(

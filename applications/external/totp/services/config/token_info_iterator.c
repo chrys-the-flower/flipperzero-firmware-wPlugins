@@ -16,6 +16,8 @@ struct TokenInfoIteratorContext {
     TokenInfo* current_token;
     FlipperFormat* config_file;
     uint8_t* iv;
+    uint8_t crypto_version;
+    uint8_t crypto_key_slot;
     Storage* storage;
 };
 
@@ -237,8 +239,12 @@ static bool
     return result;
 }
 
-TokenInfoIteratorContext*
-    totp_token_info_iterator_alloc(Storage* storage, FlipperFormat* config_file, uint8_t* iv) {
+TokenInfoIteratorContext* totp_token_info_iterator_alloc(
+    Storage* storage,
+    FlipperFormat* config_file,
+    uint8_t* iv,
+    uint8_t crypto_version,
+    uint8_t crypto_key_slot) {
     Stream* stream = flipper_format_get_raw_stream(config_file);
     stream_rewind(stream);
     size_t tokens_count = 0;
@@ -257,6 +263,8 @@ TokenInfoIteratorContext*
     context->current_token = token_info_alloc();
     context->config_file = config_file;
     context->iv = iv;
+    context->crypto_version = crypto_version;
+    context->crypto_key_slot = crypto_key_slot;
     context->storage = storage;
     return context;
 }
@@ -453,7 +461,9 @@ bool totp_token_info_iterator_go_to(TokenInfoIteratorContext* context, size_t to
                    furi_string_get_cstr(temp_str),
                    furi_string_size(temp_str),
                    PlainTokenSecretEncodingBase32,
-                   context->iv)) {
+                   context->iv,
+                   context->crypto_version,
+                   context->crypto_key_slot)) {
                 FURI_LOG_W(
                     LOGGING_TAG,
                     "Token \"%s\" has plain secret",
@@ -496,19 +506,19 @@ bool totp_token_info_iterator_go_to(TokenInfoIteratorContext* context, size_t to
     if(!flipper_format_read_uint32(
            context->config_file, TOTP_CONFIG_KEY_TOKEN_ALGO, &temp_data32, 1) ||
        !token_info_set_algo_from_int(tokenInfo, temp_data32)) {
-        tokenInfo->algo = SHA1;
+        tokenInfo->algo = TokenHashAlgoDefault;
     }
 
     if(!flipper_format_read_uint32(
            context->config_file, TOTP_CONFIG_KEY_TOKEN_DIGITS, &temp_data32, 1) ||
        !token_info_set_digits_from_int(tokenInfo, temp_data32)) {
-        tokenInfo->digits = TotpSixDigitsCount;
+        tokenInfo->digits = TokenDigitsCountSix;
     }
 
     if(!flipper_format_read_uint32(
            context->config_file, TOTP_CONFIG_KEY_TOKEN_DURATION, &temp_data32, 1) ||
        !token_info_set_duration_from_int(tokenInfo, temp_data32)) {
-        tokenInfo->duration = TOTP_TOKEN_DURATION_DEFAULT;
+        tokenInfo->duration = TokenDurationDefault;
     }
 
     if(flipper_format_read_uint32(

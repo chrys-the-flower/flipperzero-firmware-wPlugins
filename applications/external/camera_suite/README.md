@@ -23,12 +23,15 @@
 - [Software Installation](#software-installation)
 - [Software Guide](#software-guide)
 - [Attributions](#attributions)
+- [Contributions](#contributions)
 
 ## Previews <a name="previews"></a>
 
-<img align="center" src=".github/images/preview.png" />
+<img align="center" src=".github/images/preview_01.png" />
 
-More previews coming soon!
+<img align="center" src=".github/images/preview_02.png" />
+
+<img align="center" src=".github/images/preview.gif" />
 
 <p align="right">[ <a href="#index">Back to top</a> ]</p>
 
@@ -87,22 +90,23 @@ Note the upload may fail a few times, this is normal, try again. If it still fai
 ## Software Installation <a name="software-installation"></a>
 
 1. Connect your Flipper Zero via USB, or insert your MicroSD.
-2. Download "camerasuite.fap" from the release section.
-3. Move "camerasuite.fap" into `~\apps\gpio\` on your Flipper Zero MicroSD:
+2. Navigate to the GitHub actions: https://github.com/CodyTolene/Flipper-Zero-Camera-Suite/actions
+3. Open the most recent action and download the fap zip for either "dev" or "release" build versions of the Flipper Zero firmware.
+4. Move "camera_suite.fap" into `~\apps\gpio\` on your Flipper Zero MicroSD:
    ```
    .                            # The Flipper Zero MicroSD root.
    ├── apps                     # The Flipper Zero Applications folder.
-   |   ├── gpio                 # The Flipper Zero General Purpose Input/Output folder.
-   |   |   ├── camerasuite.fap  # The Camera Suite application.
+   |   ├── gpio                 # The Flipper Zero GPIO folder.
+   |   |   ├── camera_suite.fap  # The Camera Suite application.
    ```
-4. Reinsert your MicroSD into your Flipper Zero if you took it out.
-5. Plug in your ESP32-CAM module to your Flipper Zero.
-6. Press the "Power" button on your Flipper Zero to turn it on.
-7. Open the application "[ESP32-CAM] Camera Suite":
+5. Reinsert your MicroSD into your Flipper Zero if you took it out.
+6. Plug in your ESP32-CAM module to your Flipper Zero.
+7. Press the "Power" button on your Flipper Zero to turn it on.
+8. Open the application "[ESP32] Camera Suite":
    ```
-   Applications > GPIO > [ESP32-CAM] Camera Suite
+   Applications > GPIO > [ESP32] Camera Suite
    ```
-8. That's it! Follow the on screen instructions to continue.
+9. That's it! Follow the on screen instructions to continue.
 
 <p align="right">[ <a href="#index">Back to top</a> ]</p>
 
@@ -118,13 +122,13 @@ Note the upload may fail a few times, this is normal, try again. If it still fai
 
 ▶️ = Toggle dithering on/off.
 
-⚪ = Toggle between Floyd–Steinberg and Atkinson dithering.
+⚪ = Cycle Floyd–Steinberg/Jarvis-Judice-Ninke/Stucki dithering types.
 
 ↩️ = Go back.
 
 ### Camera Suite settings:
 
-**Orientation** = Rotate the camera image 90 degrees clockwise starting at zero by default (0, 90, 180, 270). This is useful if you have your camera module mounted in a different orientation than the default.
+**Orientation** = Rotate the camera image 90 degrees counter-clockwise starting at zero by default (0, 90, 180, 270). This is useful if you have your camera module mounted in a different orientation than the default.
 
 **Haptic FX** = Toggle haptic feedback on/off.
 
@@ -136,9 +140,19 @@ Note the upload may fail a few times, this is normal, try again. If it still fai
 
 ## Attributions <a name="attributions"></a>
 
-This project is based on/forked from the [Fliper Zero Camera Application][flipperzero-camera]
+This project is based on/forked from the [Flipper Zero Camera Application][flipperzero-camera]
 by [Z4urce][github-profile-z4urce] combined with the [Flipper Zero Boilerplate Application][flipper-zero-fap-boilerplate]
 by [Dave Lee][github-profile-leedave].
+
+<p align="right">[ <a href="#index">Back to top</a> ]</p>
+
+## Contributions <a name="contributions"></a>
+
+1. Fork.
+2. Create a new branch: `<username>/[<issue-#>]-<feature-or-bug-fix-desc>`
+3. Program. Commit changes, push.
+4. Request PR [here][pull-request-link], introduce work via your branch.
+5. Wait for review and merge. Thank you!
 
 <p align="right">[ <a href="#index">Back to top</a> ]</p>
 
@@ -156,3 +170,4 @@ Cody
 [flipperzero-camera]: https://github.com/Z4urce/flipperzero-camera
 [github-profile-leedave]: https://github.com/leedave
 [github-profile-z4urce]: https://github.com/Z4urce
+[pull-request-link]: https://github.com/CodyTolene/Flipper-Zero-Camera-Suite/pulls
