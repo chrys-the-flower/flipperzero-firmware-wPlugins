@@ -19,6 +19,7 @@ const char* const menu_style_names[MenuStyleCount] = {
     "List",
     "Wii",
     "DSi",
+    "PS4",
     "Vertical",
 };
 static void cfw_app_scene_interface_mainmenu_menu_style_changed(VariableItem* item) {
@@ -159,6 +160,8 @@ bool cfw_app_scene_interface_mainmenu_on_event(void* context, SceneManagerEvent 
         consumed = true;
         switch(event.event) {
         case VarItemListIndexResetMenu:
+            scene_manager_set_scene_state(
+                app->scene_manager, CfwAppSceneInterfaceMainmenuReset, 0);
             scene_manager_next_scene(app->scene_manager, CfwAppSceneInterfaceMainmenuReset);
             break;
         case VarItemListIndexRemoveApp:
@@ -176,9 +179,11 @@ bool cfw_app_scene_interface_mainmenu_on_event(void* context, SceneManagerEvent 
             app->save_mainmenu_apps = true;
             app->require_reboot = true;
             scene_manager_previous_scene(app->scene_manager);
+            scene_manager_set_scene_state(app->scene_manager, CfwAppSceneInterfaceMainmenu, 0);
             scene_manager_next_scene(app->scene_manager, CfwAppSceneInterfaceMainmenu);
             break;
         case VarItemListIndexAddApp:
+            scene_manager_set_scene_state(app->scene_manager, CfwAppSceneInterfaceMainmenuAdd, 0);
             scene_manager_next_scene(app->scene_manager, CfwAppSceneInterfaceMainmenuAdd);
             break;
         default:

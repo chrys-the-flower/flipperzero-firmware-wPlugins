@@ -7,29 +7,14 @@
 void subghz_devices_init() {
     furi_check(!subghz_device_registry_is_valid());
     subghz_device_registry_init();
-
-    SubGhzLastSettings* last_settings = subghz_last_settings_alloc();
-    subghz_last_settings_load(last_settings, 0);
-
-    if(last_settings->external_module_power_amp) {
-        furi_hal_gpio_init_simple(&gpio_ext_pc3, GpioModeOutputPushPull);
-    }
-
-    subghz_last_settings_free(last_settings);
 }
 
 void subghz_devices_deinit(void) {
     furi_check(subghz_device_registry_is_valid());
     subghz_device_registry_deinit();
-
-    SubGhzLastSettings* last_settings = subghz_last_settings_alloc();
-    subghz_last_settings_load(last_settings, 0);
-
-    if(last_settings->external_module_power_amp) {
+    if(furi_hal_subghz_get_ext_power_amp()) {
         furi_hal_gpio_init_simple(&gpio_ext_pc3, GpioModeAnalog);
     }
-
-    subghz_last_settings_free(last_settings);
 }
 
 const SubGhzDevice* subghz_devices_get_by_name(const char* device_name) {
@@ -50,14 +35,13 @@ bool subghz_devices_begin(const SubGhzDevice* device) {
     bool ret = false;
     furi_assert(device);
     if(device->interconnect->begin) {
-        // TODO: Remake this check and move this code
-        if(strcmp("cc1101_ext", device->name) == 0) {
-            if(furi_hal_subghz_get_ext_power_amp()) {
-                furi_hal_gpio_init_simple(&gpio_ext_pc3, GpioModeOutputPushPull);
-            }
-        }
+        SubGhzDeviceConf conf = {
+            .ver = 1,
+            .extended_range = false, // TODO
+            .power_amp = furi_hal_subghz_get_ext_power_amp(),
+        };
 
-        ret = device->interconnect->begin();
+        ret = device->interconnect->begin(&conf);
     }
     return ret;
 }
@@ -65,12 +49,6 @@ bool subghz_devices_begin(const SubGhzDevice* device) {
 void subghz_devices_end(const SubGhzDevice* device) {
     furi_assert(device);
     if(device->interconnect->end) {
-        // TODO: Remake this check and move this code
-        if(strcmp("cc1101_ext", device->name) == 0) {
-            if(furi_hal_subghz_get_ext_power_amp()) {
-                furi_hal_gpio_init_simple(&gpio_ext_pc3, GpioModeAnalog);
-            }
-        }
         device->interconnect->end();
     }
 }
@@ -102,12 +80,6 @@ void subghz_devices_idle(const SubGhzDevice* device) {
     furi_assert(device);
     if(device->interconnect->idle) {
         device->interconnect->idle();
-        // TODO: Remake this check and move this code
-        if(strcmp("cc1101_ext", device->name) == 0) {
-            if(furi_hal_subghz_get_ext_power_amp()) {
-                furi_hal_gpio_write(&gpio_ext_pc3, 0);
-            }
-        }
     }
 }
 
@@ -160,13 +132,6 @@ bool subghz_devices_set_tx(const SubGhzDevice* device) {
     furi_assert(device);
     if(device->interconnect->set_tx) {
         ret = device->interconnect->set_tx();
-
-        // TODO: Remake this check and move this code
-        if(strcmp("cc1101_ext", device->name) == 0) {
-            if(furi_hal_subghz_get_ext_power_amp()) {
-                furi_hal_gpio_write(&gpio_ext_pc3, 1);
-            }
-        }
     }
     return ret;
 }
@@ -207,13 +172,6 @@ void subghz_devices_set_rx(const SubGhzDevice* device) {
     furi_assert(device);
     if(device->interconnect->set_rx) {
         device->interconnect->set_rx();
-
-        // TODO: Remake this check and move this code
-        if(strcmp("cc1101_ext", device->name) == 0) {
-            if(furi_hal_subghz_get_ext_power_amp()) {
-                furi_hal_gpio_write(&gpio_ext_pc3, 0);
-            }
-        }
     }
 }
 

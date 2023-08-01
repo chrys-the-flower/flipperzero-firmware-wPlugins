@@ -26,6 +26,8 @@ Ublox* ublox_alloc() {
     ublox->worker = ublox_worker_alloc();
 
     ublox->gui = furi_record_open(RECORD_GUI);
+    view_dispatcher_attach_to_gui(
+        ublox->view_dispatcher, ublox->gui, ViewDispatcherTypeFullscreen);
 
     ublox->submenu = submenu_alloc();
     view_dispatcher_add_view(
@@ -35,18 +37,24 @@ Ublox* ublox_alloc() {
     view_dispatcher_add_view(
         ublox->view_dispatcher, UbloxViewWidget, widget_get_view(ublox->widget));
 
-    ublox->data_display = data_display_alloc();
-    view_dispatcher_add_view(
-        ublox->view_dispatcher, UbloxViewDataDisplay, data_display_get_view(ublox->data_display));
-
     ublox->variable_item_list = variable_item_list_alloc();
     view_dispatcher_add_view(
         ublox->view_dispatcher,
         UbloxViewVariableItemList,
         variable_item_list_get_view(ublox->variable_item_list));
 
-    ublox->notifications = furi_record_open(RECORD_NOTIFICATION);
+    ublox->text_input = text_input_alloc();
+    view_dispatcher_add_view(
+        ublox->view_dispatcher, UbloxViewTextInput, text_input_get_view(ublox->text_input));
 
+    ublox->data_display = data_display_alloc();
+    view_dispatcher_add_view(
+        ublox->view_dispatcher, UbloxViewDataDisplay, data_display_get_view(ublox->data_display));
+
+    ublox->notifications = furi_record_open(RECORD_NOTIFICATION);
+    ublox->storage = furi_record_open(RECORD_STORAGE);
+
+    ublox->log_state = UbloxLogStateNone;
     // Establish default data display state
     (ublox->data_display_state).view_mode = UbloxDataDisplayViewModeHandheld;
     (ublox->data_display_state).backlight_mode = UbloxDataDisplayBacklightDefault;
@@ -83,8 +91,11 @@ void ublox_free(Ublox* ublox) {
     scene_manager_free(ublox->scene_manager);
 
     furi_record_close(RECORD_GUI);
-    furi_record_close(RECORD_NOTIFICATION);
     ublox->gui = NULL;
+    furi_record_close(RECORD_NOTIFICATION);
+    ublox->notifications = NULL;
+    furi_record_close(RECORD_STORAGE);
+    ublox->storage = NULL;
 
     free(ublox);
 }
@@ -94,14 +105,11 @@ int32_t ublox_app(void* p) {
 
     Ublox* ublox = ublox_alloc();
 
-    view_dispatcher_attach_to_gui(
-        ublox->view_dispatcher, ublox->gui, ViewDispatcherTypeFullscreen);
-
     scene_manager_next_scene(ublox->scene_manager, UbloxSceneStart);
 
     view_dispatcher_run(ublox->view_dispatcher);
 
-    // force restore the default backlight
+    // force restore the default backlight on exit
     notification_message_block(ublox->notifications, &sequence_display_backlight_enforce_auto);
 
     ublox_free(ublox);
