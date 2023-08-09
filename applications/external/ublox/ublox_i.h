@@ -17,6 +17,7 @@
 #include <gui/modules/widget.h>
 #include <gui/modules/variable_item_list.h>
 #include <gui/modules/text_input.h>
+#include <gui/modules/validators.h>
 
 #include <notification/notification_messages.h>
 
@@ -28,6 +29,8 @@
 #include "views/data_display_view.h"
 #include "helpers/ublox_custom_event.h"
 #include "helpers/kml.h"
+
+extern const NotificationSequence sequence_new_reading;
 
 struct Ublox {
     ViewDispatcher* view_dispatcher;
@@ -48,6 +51,7 @@ struct Ublox {
     // file stuff
     KMLFile kmlfile;
     UbloxLogState log_state;
+    FuriString* logfile_folder;
     char text_store[100];
     Ublox_NAV_PVT_Message nav_pvt;
     Ublox_NAV_ODO_Message nav_odo;

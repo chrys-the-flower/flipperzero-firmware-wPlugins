@@ -16,6 +16,7 @@
 #include <gui/view_stack.h>
 #include <dialogs/dialogs.h>
 #include <cfw.h>
+#include <storage/storage.h>
 
 #define NUM_MENU_ITEMS (6)
 
@@ -28,12 +29,13 @@
 #define RESET_CMD "reset"
 
 #define HTML_EXTENSION ".html"
-#define HTML_FOLDER ANY_PATH("apps_data/esp32_evil_portal/html")
+#define HTML_FOLDER ANY_PATH("apps_data/evil_portal/html")
 
 struct Evil_PortalApp {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
     SceneManager* scene_manager;
+    Storage* storage;
 
     FuriString* portal_logs;
     const char* command_queue[1];
@@ -63,10 +65,10 @@ struct Evil_PortalApp {
     bool sent_html;
     bool sent_reset;
     int BAUDRATE;
-    char text_store[2][128 + 1];
 
-    uint8_t* index_html;
-    uint8_t* ap_name;
+    // AP SSID length can be maximum 32.
+    // Make the buffer 33 to accommodate the terminator char.
+    char ap_name[33];
 };
 
 typedef enum {

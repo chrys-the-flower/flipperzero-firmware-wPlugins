@@ -93,7 +93,7 @@ static void loader_menu_build_menu(LoaderMenuApp* app, LoaderMenu* menu) {
     for(size_t i = 0; i < MainMenuList_size(*mainmenu_apps); i++) {
         const MainMenuApp* mainmenu_app = MainMenuList_get(*mainmenu_apps, i);
 
-        if(strcmp(mainmenu_app->name, "Applications") == 0) {
+        if(strcmp(mainmenu_app->name, LOADER_APPLICATIONS_NAME) == 0) {
             menu_add_item(
                 app->primary_menu,
                 LOADER_APPLICATIONS_NAME,
@@ -191,7 +191,7 @@ static LoaderMenuApp* loader_gamesmenu_app_alloc(LoaderMenu* loader_menu) {
     app->gui = furi_record_open(RECORD_GUI);
     app->view_dispatcher = view_dispatcher_alloc();
 
-    app->primary_menu = menu_pos_alloc(0);
+    app->primary_menu = menu_alloc();
     loader_menu_build_gamesmenu(app, loader_menu);
 
     // Primary menu

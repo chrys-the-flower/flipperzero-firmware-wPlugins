@@ -14,7 +14,18 @@ typedef struct {
     DataDisplayState state;
     Ublox_NAV_PVT_Message nav_pvt;
     Ublox_NAV_ODO_Message nav_odo;
+    UbloxLogState log_state;
 } DataDisplayViewModel;
+
+static void draw_buttons(Canvas* canvas, void* model) {
+    DataDisplayViewModel* m = model;
+    elements_button_left(canvas, "Config");
+    if(m->log_state == UbloxLogStateLogging) {
+        elements_button_right(canvas, "Stop Log");
+    } else {
+        elements_button_right(canvas, "Start Log");
+    }
+}
 
 static void data_display_draw_callback(Canvas* canvas, void* model) {
     DataDisplayViewModel* m = model;
@@ -29,50 +40,55 @@ static void data_display_draw_callback(Canvas* canvas, void* model) {
         // TODO: check invalidLlh flag in flags3?
         Ublox_NAV_PVT_Message message = m->nav_pvt;
         Ublox_NAV_ODO_Message nav_odo = m->nav_odo;
-
+        draw_buttons(canvas, model);
         FuriString* s = furi_string_alloc();
-        elements_button_left(canvas, "Config");
-        elements_button_center(canvas, "Reset");
-        elements_button_right(canvas, "Log");
+
         /*** Draw fix ***/
         canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 0, 9, "Fix:");
+        canvas_draw_str(canvas, 0, 9, "F/S:");
 
         canvas_set_font(canvas, FontSecondary);
 
         if(message.fixType == 0) {
-            canvas_draw_str(canvas, 21, 9, "N");
+            furi_string_printf(s, "N");
         } else if(message.fixType == 1) {
-            canvas_draw_str(canvas, 21, 9, "R");
+            furi_string_printf(s, "R");
         } else if(message.fixType == 2) {
-            canvas_draw_str(canvas, 21, 9, "2D");
+            furi_string_printf(s, "2D");
         } else if(message.fixType == 3) {
-            canvas_draw_str(canvas, 21, 9, "3D");
+            furi_string_printf(s, "3D");
         } else if(message.fixType == 4) {
-            canvas_draw_str(canvas, 21, 9, "G+D");
+            furi_string_printf(s, "G+D");
         } else if(message.fixType == 5) {
-            canvas_draw_str(canvas, 21, 9, "TO");
+            furi_string_printf(s, "TO");
         }
 
         /*** Draw number of satellites ***/
-        canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 37, 9, "Sat:");
-
-        canvas_set_font(canvas, FontSecondary);
-        furi_string_printf(s, "%u", message.numSV);
-        canvas_draw_str(canvas, 60, 9, furi_string_get_cstr(s));
+        furi_string_cat_printf(s, "/%u", message.numSV);
+        canvas_draw_str(canvas, 23, 9, furi_string_get_cstr(s));
 
         /*** Draw odometer ***/
         canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 74, 9, "Od:");
+        canvas_draw_str(canvas, 58, 9, "Od:");
 
         canvas_set_font(canvas, FontSecondary);
+        // distance values are in meters
         if(locale_get_measurement_unit() == LocaleMeasurementUnitsMetric) {
-            furi_string_printf(s, "%.1fm", (double)(nav_odo.distance / 1e3)); // meters
+            furi_string_printf(s, "%.1fkm", (double)(nav_odo.distance / 1e3)); // km
         } else {
-            furi_string_printf(s, "%.1fmi", (double)(nav_odo.distance / 1e3 * 3.281)); // mi
+            furi_string_printf(s, "%.1fmi", (double)(nav_odo.distance / 1e3 * 0.6214)); // km to mi
         }
-        canvas_draw_str(canvas, 93, 9, furi_string_get_cstr(s));
+        canvas_draw_str(canvas, 77, 9, furi_string_get_cstr(s));
+
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str(canvas, 112, 9, "L:");
+
+        canvas_set_font(canvas, FontSecondary);
+        if(m->log_state == UbloxLogStateLogging) {
+            canvas_draw_str(canvas, 122, 9, "Y"); // yes
+        } else {
+            canvas_draw_str(canvas, 122, 9, "N"); // no
+        }
 
         /*** Draw latitude ***/
         canvas_set_font(canvas, FontPrimary);
@@ -92,7 +108,7 @@ static void data_display_draw_callback(Canvas* canvas, void* model) {
 
         /*** Draw altitude ***/
         canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 70, 22, "Alt:");
+        canvas_draw_str(canvas, 75, 22, "Alt:");
 
         canvas_set_font(canvas, FontSecondary);
         // hMSL is height above mean sea level in mm
@@ -101,7 +117,7 @@ static void data_display_draw_callback(Canvas* canvas, void* model) {
         } else {
             furi_string_printf(s, "%.0fft", (double)(message.hMSL / 1e3 * 3.281));
         }
-        canvas_draw_str(canvas, 91, 22, furi_string_get_cstr(s));
+        canvas_draw_str(canvas, 96, 22, furi_string_get_cstr(s));
 
         /*** Draw heading ***/
         canvas_set_font(canvas, FontPrimary);
@@ -142,10 +158,7 @@ static void data_display_draw_callback(Canvas* canvas, void* model) {
         Ublox_NAV_PVT_Message message = m->nav_pvt;
         Ublox_NAV_ODO_Message nav_odo = m->nav_odo;
         FuriString* s = furi_string_alloc();
-        elements_button_left(canvas, "Config");
-        elements_button_center(canvas, "Reset");
-        elements_button_right(canvas, "Log");
-
+        draw_buttons(canvas, model);
         // TODO: imperial/metric
         canvas_set_font(canvas, FontPrimary);
         // gSpeed is in mm/s
@@ -186,6 +199,8 @@ static void data_display_draw_callback(Canvas* canvas, void* model) {
 
 static bool data_display_input_callback(InputEvent* event, void* context) {
     DataDisplayView* data_display = context;
+    // this method of getting the model breaks the whole app
+    //DataDisplayViewModel* model = view_get_model(data_display->view);
     bool consumed = false;
 
     if(event->type == InputTypeShort) {
@@ -194,11 +209,7 @@ static bool data_display_input_callback(InputEvent* event, void* context) {
                 data_display->callback(data_display->context, event->key);
             }
             consumed = true;
-        } else if(event->key == InputKeyOk) {
-            if(data_display->callback) {
-                data_display->callback(data_display->context, event->key);
-            }
-        } else if(event->key == InputKeyRight) {
+        } else if(event->key == InputKeyRight) { // && model->state != DataDisplayGPSNotFound) {
             if(data_display->callback) {
                 data_display->callback(data_display->context, event->key);
             }
@@ -272,6 +283,12 @@ void data_display_set_nav_messages(
         true);
 }
 
+void data_display_set_log_state(DataDisplayView* data_display, UbloxLogState log_state) {
+    furi_assert(data_display);
+    with_view_model(
+        data_display->view, DataDisplayViewModel * model, { model->log_state = log_state; }, true);
+}
+
 void data_display_set_state(DataDisplayView* data_display, DataDisplayState state) {
     furi_assert(data_display);
     with_view_model(
@@ -280,4 +297,17 @@ void data_display_set_state(DataDisplayView* data_display, DataDisplayState stat
         { model->state = state; },
         // do refresh
         true);
+}
+
+DataDisplayState data_display_get_state(DataDisplayView* data_display) {
+    DataDisplayState state;
+    furi_assert(data_display);
+    with_view_model(
+        data_display->view,
+        DataDisplayViewModel * model,
+        { state = model->state; },
+        // no refresh
+        false);
+
+    return state;
 }

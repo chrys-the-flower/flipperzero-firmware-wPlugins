@@ -111,7 +111,16 @@ static char* totp_config_file_backup_i(Storage* storage) {
 static bool totp_open_config_file(Storage* storage, FlipperFormat** file) {
     FlipperFormat* fff_data_file = flipper_format_file_alloc(storage);
 
-    if(storage_common_stat(storage, CONFIG_FILE_PATH, NULL) == FSE_OK) {
+    bool conf_file_exists = storage_common_stat(storage, CONFIG_FILE_PATH, NULL) == FSE_OK;
+    if(!conf_file_exists) {
+        FURI_LOG_I(LOGGING_TAG, "Application catalog needs to be migrated");
+        FS_Error migration_result =
+            storage_common_migrate(storage, EXT_PATH("authenticator"), CONFIG_FILE_DIRECTORY_PATH);
+        FURI_LOG_I(LOGGING_TAG, "Migrated catalog. Result code: %d", (int)migration_result);
+        conf_file_exists = storage_common_stat(storage, CONFIG_FILE_PATH, NULL) == FSE_OK;
+    }
+
+    if(conf_file_exists) {
         FURI_LOG_D(LOGGING_TAG, "Config file %s found", CONFIG_FILE_PATH);
         if(!flipper_format_file_open_existing(fff_data_file, CONFIG_FILE_PATH)) {
             FURI_LOG_E(LOGGING_TAG, "Error opening existing file %s", CONFIG_FILE_PATH);
@@ -120,16 +129,6 @@ static bool totp_open_config_file(Storage* storage, FlipperFormat** file) {
         }
     } else {
         FURI_LOG_D(LOGGING_TAG, "Config file %s is not found. Will create new.", CONFIG_FILE_PATH);
-        if(storage_common_stat(storage, CONFIG_FILE_DIRECTORY_PATH, NULL) == FSE_NOT_EXIST) {
-            FURI_LOG_D(
-                LOGGING_TAG,
-                "Directory %s doesn't exist. Will create new.",
-                CONFIG_FILE_DIRECTORY_PATH);
-            if(!storage_simply_mkdir(storage, CONFIG_FILE_DIRECTORY_PATH)) {
-                FURI_LOG_E(LOGGING_TAG, "Error creating directory %s", CONFIG_FILE_DIRECTORY_PATH);
-                return false;
-            }
-        }
 
         if(!flipper_format_file_open_new(fff_data_file, CONFIG_FILE_PATH)) {
             totp_close_config_file(fff_data_file);
@@ -376,7 +375,7 @@ bool totp_config_file_load(PluginState* const plugin_state) {
             break;
         }
 
-        plugin_state->crypto_version = tmp_uint32;
+        plugin_state->crypto_settings.crypto_version = tmp_uint32;
 
         if(!flipper_format_rewind(fff_data_file)) {
             break;
@@ -389,7 +388,7 @@ bool totp_config_file_load(PluginState* const plugin_state) {
             break;
         }
 
-        plugin_state->crypto_key_slot = tmp_uint32;
+        plugin_state->crypto_settings.crypto_key_slot = tmp_uint32;
 
         if(!flipper_format_rewind(fff_data_file)) {
             break;
@@ -398,7 +397,7 @@ bool totp_config_file_load(PluginState* const plugin_state) {
         if(!flipper_format_read_hex(
                fff_data_file,
                TOTP_CONFIG_KEY_BASE_IV,
-               &plugin_state->base_iv[0],
+               &plugin_state->crypto_settings.base_iv[0],
                CRYPTO_IV_LENGTH)) {
             FURI_LOG_D(LOGGING_TAG, "Missing base IV");
         }
@@ -411,22 +410,23 @@ bool totp_config_file_load(PluginState* const plugin_state) {
         if(flipper_format_get_value_count(
                fff_data_file, TOTP_CONFIG_KEY_CRYPTO_VERIFY, &crypto_size) &&
            crypto_size > 0) {
-            plugin_state->crypto_verify_data = malloc(sizeof(uint8_t) * crypto_size);
-            furi_check(plugin_state->crypto_verify_data != NULL);
-            plugin_state->crypto_verify_data_length = crypto_size;
+            plugin_state->crypto_settings.crypto_verify_data =
+                malloc(sizeof(uint8_t) * crypto_size);
+            furi_check(plugin_state->crypto_settings.crypto_verify_data != NULL);
+            plugin_state->crypto_settings.crypto_verify_data_length = crypto_size;
             if(!flipper_format_read_hex(
                    fff_data_file,
                    TOTP_CONFIG_KEY_CRYPTO_VERIFY,
-                   plugin_state->crypto_verify_data,
+                   plugin_state->crypto_settings.crypto_verify_data,
                    crypto_size)) {
                 FURI_LOG_D(LOGGING_TAG, "Missing crypto verify token");
-                free(plugin_state->crypto_verify_data);
-                plugin_state->crypto_verify_data = NULL;
-                plugin_state->crypto_verify_data_length = 0;
+                free(plugin_state->crypto_settings.crypto_verify_data);
+                plugin_state->crypto_settings.crypto_verify_data = NULL;
+                plugin_state->crypto_settings.crypto_verify_data_length = 0;
             }
         } else {
-            plugin_state->crypto_verify_data = NULL;
-            plugin_state->crypto_verify_data_length = 0;
+            plugin_state->crypto_settings.crypto_verify_data = NULL;
+            plugin_state->crypto_settings.crypto_verify_data_length = 0;
         }
 
         if(!flipper_format_rewind(fff_data_file)) {
@@ -444,8 +444,11 @@ bool totp_config_file_load(PluginState* const plugin_state) {
         }
 
         if(!flipper_format_read_bool(
-               fff_data_file, TOTP_CONFIG_KEY_PINSET, &plugin_state->pin_set, 1)) {
-            plugin_state->pin_set = true;
+               fff_data_file,
+               TOTP_CONFIG_KEY_PINSET,
+               &plugin_state->crypto_settings.pin_required,
+               1)) {
+            plugin_state->crypto_settings.pin_required = true;
         }
 
         if(!flipper_format_rewind(fff_data_file)) {
@@ -499,9 +502,7 @@ bool totp_config_file_load(PluginState* const plugin_state) {
             totp_token_info_iterator_alloc(
                 storage,
                 plugin_state->config_file_context->config_file,
-                plugin_state->iv,
-                plugin_state->crypto_version,
-                plugin_state->crypto_key_slot);
+                &plugin_state->crypto_settings);
         result = true;
     } while(false);
 
@@ -514,33 +515,39 @@ bool totp_config_file_update_crypto_signatures(const PluginState* plugin_state) 
     flipper_format_rewind(config_file);
     bool update_result = false;
     do {
-        uint32_t tmp_uint32 = plugin_state->crypto_version;
+        uint32_t tmp_uint32 = plugin_state->crypto_settings.crypto_version;
         if(!flipper_format_insert_or_update_uint32(
                config_file, TOTP_CONFIG_KEY_CRYPTO_VERSION, &tmp_uint32, 1)) {
             break;
         }
 
-        tmp_uint32 = plugin_state->crypto_key_slot;
+        tmp_uint32 = plugin_state->crypto_settings.crypto_key_slot;
         if(!flipper_format_insert_or_update_uint32(
                config_file, TOTP_CONFIG_KEY_CRYPTO_KEY_SLOT, &tmp_uint32, 1)) {
             break;
         }
 
         if(!flipper_format_insert_or_update_hex(
-               config_file, TOTP_CONFIG_KEY_BASE_IV, plugin_state->base_iv, CRYPTO_IV_LENGTH)) {
+               config_file,
+               TOTP_CONFIG_KEY_BASE_IV,
+               plugin_state->crypto_settings.base_iv,
+               CRYPTO_IV_LENGTH)) {
             break;
         }
 
         if(!flipper_format_insert_or_update_hex(
                config_file,
                TOTP_CONFIG_KEY_CRYPTO_VERIFY,
-               plugin_state->crypto_verify_data,
-               plugin_state->crypto_verify_data_length)) {
+               plugin_state->crypto_settings.crypto_verify_data,
+               plugin_state->crypto_settings.crypto_verify_data_length)) {
             break;
         }
 
         if(!flipper_format_insert_or_update_bool(
-               config_file, TOTP_CONFIG_KEY_PINSET, &plugin_state->pin_set, 1)) {
+               config_file,
+               TOTP_CONFIG_KEY_PINSET,
+               &plugin_state->crypto_settings.pin_required,
+               1)) {
             break;
         }
 
@@ -582,24 +589,20 @@ bool totp_config_file_update_encryption(
         return false;
     }
 
-    uint8_t old_iv[CRYPTO_IV_LENGTH];
-    memcpy(&old_iv[0], &plugin_state->iv[0], CRYPTO_IV_LENGTH);
+    CryptoSettings old_crypto_settings = plugin_state->crypto_settings;
 
-    uint8_t old_crypto_key_slot = plugin_state->crypto_key_slot;
-    uint8_t old_crypto_version = plugin_state->crypto_version;
-
-    memset(&plugin_state->iv[0], 0, CRYPTO_IV_LENGTH);
-    memset(&plugin_state->base_iv[0], 0, CRYPTO_IV_LENGTH);
-    if(plugin_state->crypto_verify_data != NULL) {
-        free(plugin_state->crypto_verify_data);
-        plugin_state->crypto_verify_data = NULL;
+    memset(&plugin_state->crypto_settings.iv[0], 0, CRYPTO_IV_LENGTH);
+    memset(&plugin_state->crypto_settings.base_iv[0], 0, CRYPTO_IV_LENGTH);
+    if(plugin_state->crypto_settings.crypto_verify_data != NULL) {
+        free(plugin_state->crypto_settings.crypto_verify_data);
+        plugin_state->crypto_settings.crypto_verify_data = NULL;
     }
 
-    plugin_state->crypto_key_slot = new_crypto_key_slot;
-    plugin_state->crypto_version = CRYPTO_LATEST_VERSION;
+    plugin_state->crypto_settings.crypto_key_slot = new_crypto_key_slot;
+    plugin_state->crypto_settings.crypto_version = CRYPTO_LATEST_VERSION;
 
-    CryptoSeedIVResult seed_result =
-        totp_crypto_seed_iv(plugin_state, new_pin_length > 0 ? new_pin : NULL, new_pin_length);
+    CryptoSeedIVResult seed_result = totp_crypto_seed_iv(
+        &plugin_state->crypto_settings, new_pin_length > 0 ? new_pin : NULL, new_pin_length);
     if(seed_result & CryptoSeedIVResultFlagSuccess &&
        seed_result & CryptoSeedIVResultFlagNewCryptoVerifyData &&
        !totp_config_file_update_crypto_signatures(plugin_state)) {
@@ -650,21 +653,14 @@ bool totp_config_file_update_encryption(
 
                 size_t plain_token_length;
                 uint8_t* plain_token = totp_crypto_decrypt(
-                    encrypted_token,
-                    secret_bytes_count,
-                    &old_iv[0],
-                    old_crypto_version,
-                    old_crypto_key_slot,
-                    &plain_token_length);
+                    encrypted_token, secret_bytes_count, &old_crypto_settings, &plain_token_length);
 
                 free(encrypted_token);
                 size_t encrypted_token_length;
                 encrypted_token = totp_crypto_encrypt(
                     plain_token,
                     plain_token_length,
-                    &plugin_state->iv[0],
-                    plugin_state->crypto_version,
-                    plugin_state->crypto_key_slot,
+                    &plugin_state->crypto_settings,
                     &encrypted_token_length);
 
                 memset_s(plain_token, plain_token_length, 0, plain_token_length);
@@ -701,12 +697,12 @@ bool totp_config_file_ensure_latest_encryption(
     const uint8_t* pin,
     uint8_t pin_length) {
     bool result = true;
-    if(plugin_state->crypto_version < CRYPTO_LATEST_VERSION) {
+    if(plugin_state->crypto_settings.crypto_version < CRYPTO_LATEST_VERSION) {
         FURI_LOG_I(LOGGING_TAG, "Migration to crypto v%d is needed", CRYPTO_LATEST_VERSION);
         char* backup_path = totp_config_file_backup(plugin_state);
         if(backup_path != NULL) {
             free(backup_path);
-            uint8_t crypto_key_slot = plugin_state->crypto_key_slot;
+            uint8_t crypto_key_slot = plugin_state->crypto_settings.crypto_key_slot;
             if(!totp_crypto_check_key_slot(crypto_key_slot)) {
                 crypto_key_slot = DEFAULT_CRYPTO_KEY_SLOT;
             }

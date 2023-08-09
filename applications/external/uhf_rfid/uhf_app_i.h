@@ -4,7 +4,6 @@
 #include <gui/gui.h>
 #include <gui/view_dispatcher.h>
 #include <gui/scene_manager.h>
-#include <gui/canvas_i.h>
 #include <notification/notification_messages.h>
 
 #include <gui/modules/submenu.h>
@@ -15,31 +14,30 @@
 
 #include <input/input.h>
 
+#include "uhf_app.h"
+#include "uhf_worker.h"
+#include "uhf_device.h"
 #include "scenes/uhf_scene.h"
 
 #include <storage/storage.h>
-// #include <lib/toolbox/path.h>
+#include <lib/toolbox/path.h>
 #include <toolbox/path.h>
 #include <flipper_format/flipper_format.h>
 
-#include "uhf_app.h"
-#include "uhf_worker.h"
 #include <uhf_rfid_icons.h>
 
-#define UHF_FILE_HEADER            \
-    "Filetype: Flipper uhf data\n" \
-    "Version: 1"
 #define UHF_TEXT_STORE_SIZE 128
-#define UHF_APPS_DATA_FOLDER EXT_PATH("apps_data")
-#define UHF_APPS_STORAGE_FOLDER \
-    UHF_APPS_DATA_FOLDER "/"    \
-                         "uhf_rfid"
-#define UHF_FILE_EXTENSION ".uhf"
+// #define UHF_APPS_DATA_FOLDER EXT_PATH("apps_data")
+// #define UHF_APPS_STORAGE_FOLDER
+//     UHF_APPS_DATA_FOLDER "/"
+//                          "uhf_rfid"
+// #define UHF_FILE_EXTENSION ".uhf"
 
 enum UHFCustomEvent {
     // Reserve first 100 events for button types and indexes, starting from 0
     UHFCustomEventReserved = 100,
 
+    UHFCustomEventVerifyDone,
     UHFCustomEventViewExit,
     UHFCustomEventWorkerExit,
     UHFCustomEventByteInputDone,
@@ -57,11 +55,10 @@ struct UHFApp {
     Gui* gui;
     NotificationApp* notifications;
     SceneManager* scene_manager;
-    Storage* storage;
-
+    // Storage* storage;
+    UHFDevice* uhf_device;
     char text_store[UHF_TEXT_STORE_SIZE + 1];
     FuriString* text_box_store;
-
     // Common Views
     Submenu* submenu;
     Popup* popup;
@@ -104,4 +101,4 @@ bool uhf_is_memset(const uint8_t* data, const uint8_t pattern, size_t size);
 
 char* convertToHexString(const uint8_t* array, size_t length);
 
-bool uhf_save_data(UHFResponseData* uhf_response_data, Storage* storage, const char* filename);
+bool uhf_save_read_data(UHFResponseData* uhf_response_data, Storage* storage, const char* filename);

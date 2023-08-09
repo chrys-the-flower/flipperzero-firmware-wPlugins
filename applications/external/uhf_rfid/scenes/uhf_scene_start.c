@@ -27,19 +27,18 @@ bool uhf_scene_start_on_event(void* ctx, SceneManagerEvent event) {
     UHFApp* uhf_app = ctx;
     bool consumed = false;
     if(event.type == SceneManagerEventTypeCustom) {
-        // FURI_LOG_E("scene_start_on_event", "%lu", event.event);
         if(event.event == SubmenuIndexRead) {
             scene_manager_set_scene_state(uhf_app->scene_manager, UHFSceneStart, SubmenuIndexRead);
             scene_manager_next_scene(uhf_app->scene_manager, UHFSceneReadTag);
             consumed = true;
+        } else if(event.event == SubmenuIndexSaved) {
+            // Explicitly save state so that the correct item is
+            // reselected if the user cancels loading a file.
+            scene_manager_set_scene_state(
+                uhf_app->scene_manager, UHFSceneStart, SubmenuIndexSaved);
+            scene_manager_next_scene(uhf_app->scene_manager, UHFSceneFileSelect);
+            consumed = true;
         }
-        //else if(event.event == SubmenuIndexSaved) {
-        // Explicitly save state so that the correct item is
-        // reselected if the user cancels loading a file.
-        // scene_manager_set_scene_state(
-        //     uhf_app->scene_manager, UHFSceneStart, SubmenuIndexSaved);
-        // scene_manager_next_scene(uhf_app->scene_manager, UHFSceneFileSelect);
-        // consumed = true;
         // } else if(event.event == SubmenuIndexEliteDictAttack) {
         //     scene_manager_set_scene_state(
         //         uhf_app->scene_manager, UHFSceneStart, SubmenuIndexEliteDictAttack);

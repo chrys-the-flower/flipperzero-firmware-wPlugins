@@ -199,7 +199,6 @@ bool subghz_device_cc1101_ext_alloc(SubGhzDeviceConf* conf) {
     subghz_device_cc1101_ext->state = SubGhzDeviceCC1101ExtStateInit;
     subghz_device_cc1101_ext->regulation = SubGhzDeviceCC1101ExtRegulationTxRx;
     subghz_device_cc1101_ext->async_mirror_pin = NULL;
-
     subghz_device_cc1101_ext->g0_pin = SUBGHZ_DEVICE_CC1101_EXT_TX_GPIO;
     subghz_device_cc1101_ext->power_amp = false;
     subghz_device_cc1101_ext->extended_range = false;
@@ -231,6 +230,7 @@ bool subghz_device_cc1101_ext_alloc(SubGhzDeviceConf* conf) {
     furi_hal_spi_bus_handle_init(subghz_device_cc1101_ext->spi_bus_handle);
     if(subghz_device_cc1101_ext->power_amp) {
         furi_hal_gpio_init_simple(SUBGHZ_DEVICE_CC1101_EXT_E07_AMP_GPIO, GpioModeOutputPushPull);
+        furi_hal_gpio_write(SUBGHZ_DEVICE_CC1101_EXT_E07_AMP_GPIO, 0);
     }
 
     return subghz_device_cc1101_ext_check_init();
@@ -245,14 +245,15 @@ void subghz_device_cc1101_ext_free() {
     }
 
     free(subghz_device_cc1101_ext);
-    subghz_device_cc1101_ext = NULL;
 
     // resetting the CS pins to floating
-    if(CFW_SETTINGS()->spi_nrf24_handle == SpiDefault) {
+    if(CFW_SETTINGS()->spi_nrf24_handle == SpiDefault || subghz_device_cc1101_ext->power_amp) {
         furi_hal_gpio_init_simple(&gpio_ext_pc3, GpioModeAnalog);
     } else if(CFW_SETTINGS()->spi_nrf24_handle == SpiExtra) {
         furi_hal_gpio_init_simple(&gpio_ext_pa4, GpioModeAnalog);
     }
+
+    subghz_device_cc1101_ext = NULL;
 }
 
 void subghz_device_cc1101_ext_set_async_mirror_pin(const GpioPin* pin) {
@@ -586,7 +587,7 @@ void subghz_device_cc1101_ext_start_async_rx(
     furi_hal_bus_enable(FuriHalBusTIM17);
 
     // Configure TIM
-    //Set the timer resolution to 2 �s
+    //Set the timer resolution to 2 us
     LL_TIM_SetPrescaler(TIM17, (64 << 1) - 1);
     LL_TIM_SetCounterMode(TIM17, LL_TIM_COUNTERMODE_UP);
     LL_TIM_SetAutoReload(TIM17, 0xFFFF);
@@ -767,7 +768,7 @@ bool subghz_device_cc1101_ext_start_async_tx(SubGhzDeviceCC1101ExtCallback callb
     furi_hal_bus_enable(FuriHalBusTIM17);
 
     // Configure TIM
-    // Set the timer resolution to 2 �s
+    // Set the timer resolution to 2 us
     LL_TIM_SetPrescaler(TIM17, (64 << 1) - 1);
     LL_TIM_SetCounterMode(TIM17, LL_TIM_COUNTERMODE_UP);
     LL_TIM_SetAutoReload(TIM17, 0xFFFF);

@@ -7,7 +7,8 @@ static void hex_key_input_cb(void* context) {
     ESubGhzChatState* state = context;
 
     /* initiate the crypto context */
-    bool ret = crypto_ctx_set_key(state->crypto_ctx, state->hex_key_input_store);
+    bool ret = crypto_ctx_set_key(
+        state->crypto_ctx, state->hex_key_input_store, state->name_prefix, furi_get_tick());
 
     /* cleanup */
     crypto_explicit_bzero(state->hex_key_input_store, sizeof(state->hex_key_input_store));
@@ -21,7 +22,7 @@ static void hex_key_input_cb(void* context) {
 
     enter_chat(state);
 
-    scene_manager_handle_custom_event(state->scene_manager, ESubGhzChatEvent_HexKeyEntered);
+    view_dispatcher_send_custom_event(state->view_dispatcher, ESubGhzChatEvent_HexKeyEntered);
 }
 
 /* Prepares the hex key input scene. */

@@ -131,7 +131,6 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
                 item = MenuItemArray_get(model->items, item_i);
                 menu_centered_icon(canvas, item, x_off, y_off, 40, 20);
                 menu_short_name(item, name);
-                if(item->label == (char*)"Applications") furi_string_set(name, "Apps");
                 if(item->label == (char*)"125 kHz RFID") furi_string_set(name, "RFID");
                 if(item->label == (char*)"Sub-GHz") furi_string_set(name, "SubGHz");
                 elements_scrollable_text_line(
@@ -285,56 +284,58 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
 
 static bool menu_input_callback(InputEvent* event, void* context) {
     Menu* menu = context;
-    bool consumed = false;
+    bool consumed = true;
+    if(CFW_SETTINGS()->menu_style == MenuStyleVertical &&
+       furi_hal_rtc_is_flag_set(FuriHalRtcFlagHandOrient)) {
+        if(event->key == InputKeyLeft) {
+            event->key = InputKeyRight;
+        } else if(event->key == InputKeyRight) {
+            event->key = InputKeyLeft;
+        }
+    }
 
     if(event->type == InputTypeShort) {
         switch(event->key) {
         case InputKeyUp:
-            consumed = true;
             menu_process_up(menu);
             break;
         case InputKeyDown:
-            consumed = true;
             menu_process_down(menu);
             break;
         case InputKeyLeft:
-            consumed = true;
             menu_process_left(menu);
             break;
         case InputKeyRight:
-            consumed = true;
             menu_process_right(menu);
             break;
         case InputKeyOk:
-            consumed = true;
             menu_process_ok(menu);
             break;
         default:
+            consumed = false;
             break;
         }
     } else if(event->type == InputTypeRepeat) {
         switch(event->key) {
         case InputKeyUp:
-            consumed = true;
             menu_process_up(menu);
             break;
         case InputKeyDown:
-            consumed = true;
             menu_process_down(menu);
             break;
         case InputKeyLeft:
-            consumed = true;
             menu_process_left(menu);
             break;
         case InputKeyRight:
-            consumed = true;
             menu_process_right(menu);
             break;
         default:
+            consumed = false;
             break;
         }
+    } else {
+        consumed = false;
     }
-
     return consumed;
 }
 
@@ -373,6 +374,10 @@ static void menu_exit(void* context) {
         },
         false);
     furi_timer_stop(menu->scroll_timer);
+}
+
+Menu* menu_alloc() {
+    return menu_pos_alloc(0);
 }
 
 Menu* menu_pos_alloc(size_t pos) {
