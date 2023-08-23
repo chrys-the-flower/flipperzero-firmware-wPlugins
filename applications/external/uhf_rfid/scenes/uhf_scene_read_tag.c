@@ -29,7 +29,6 @@ void uhf_scene_read_tag_on_enter(void* ctx) {
 }
 
 bool uhf_scene_read_tag_on_event(void* ctx, SceneManagerEvent event) {
-    // UNUSED(ctx);
     UHFApp* uhf_app = ctx;
     bool consumed = false;
     if(event.event == UHFCustomEventWorkerExit) {
@@ -45,6 +44,5 @@ void uhf_scene_read_tag_on_exit(void* ctx) {
     uhf_worker_stop(uhf_app->worker);
     // Clear view
     popup_reset(uhf_app->popup);
-
     uhf_blink_stop(uhf_app);
 }

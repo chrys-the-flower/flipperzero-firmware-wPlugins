@@ -1,21 +1,34 @@
 # [UHF]RFID App for FlipperZero
 
-![FlipperZero](assets/img/uhf_demo_app.jpg)
+![FlipperZero](assets/img/uhf_demo_app2.jpg)
 
 ## Overview
 
 This repository contains a UHF RFID application developed for FlipperZero, a versatile multi-tool device. The app leverages the YRM100 module to enable UHF RFID functionality.
 
+## What's Changed
+
+- A complete refractor from the concept code to covert to a framework. So that it's easy to refractor for different possible module's. See [module.h](uhf_module.h) for more info.
+- Reading bank now can automatically detect bank size, for cases that PC(protocol control) bits aren't properly written to tag.
+- Can now view tag from saved.
+- Can now write tags from saved.
+- Icon added by [@xMasterX](https://github.com/xMasterX)
+- App is now named `[(Q)M100] UHF RFID`, meaning for M100 and QM100 modules
+
 ## Features
 
 - [x] Read Single UHF RFID tag.
 - [x] View saved UHF RFID tag.
-- [ ] Write Single UHF RFID tag. __(in progress)__
-- [ ] Change Module setting parameters.
-- [ ] Easy-to-use interface on FlipperZero's display.
-    - Extras
-        - [ ] Read multiple tags at once
-        - [ ] View multiple on a list view
+- [x] Write Single UHF RFID tag.
+- [ ] Change Module setting parameters. **(In Progress)**
+  - [ ] Set/Reset Access Password
+  - [ ] Set Kill Password
+  - [ ] Kill Tag
+  - [ ] TBD
+- [ ] Edit/Create new data to write.
+- Extras
+  - [ ] Read multiple tags at once
+  - [ ] View multiple on a list view
 
 ## Requirements
 
@@ -24,7 +37,7 @@ To run this application on FlipperZero, you will need:
 - FlipperZero device (purchase from [Flipper Devices](https://www.flipperdevices.com))
 - YRM100 UHF RFID module (purchase from [Ali-Express](https://www.aliexpress.com/item/1005005296512846.html))
 
-## Installation
+## Setup and Installation
 
 1. Ensure you have set up your FlipperZero device with the YRM100 module properly. You can also read more about how to setup the module from the [Md5Stack Docs page](http://docs.m5stack.com/en/unit/uhf_rfid).
    ![wiring diagram](https://static-cdn.m5stack.com/resource/docs/products/unit/uhf_rfid/uhf_rfid_sch_01.webp)
@@ -43,15 +56,11 @@ To run this application on FlipperZero, you will need:
 2. Connect the uhf module to the flipper via gpio.
 3. Navigate to the UHF RFID app on FlipperZero's menu.
 4. Currently Reading the EPC tag is the only usable option
-... will further update this page as it development goes
+   ... will further update this page as it development goes
 
 ## Contributions
 
 As this app is still in the development stage, I welcome contributions to this project. If you find any issues or want to enhance the application, feel free to create a pull request.
-
-<!-- ## License
-
-This project is licensed under the [MIT License](link_to_license_file). -->
 
 ## Disclaimer
 
@@ -62,6 +71,9 @@ This project is licensed under the [MIT License](link_to_license_file). -->
 ## Extra Resources
 
 - [MagicRF M100&QM100_Firmware_manual_en.pdf](assets/res/MagicRF_M100&QM100_Firmware_manual_en.pdf)
+- [TDS_1_9_Standard.pdf](assets/res/TDS_1_9_Standard.pdf)
+- [M5Stack Docs](https://docs.m5stack.com/en/unit/uhf_rfid)
+- [MagicRF Chip DS](http://www.magicrf.com/product_en.htm)
 
 ## Contact
 

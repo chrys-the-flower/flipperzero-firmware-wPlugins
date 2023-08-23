@@ -23,15 +23,18 @@ typedef enum {
     LFRFIDWorkerReadTypeAuto,
     LFRFIDWorkerReadTypeASKOnly,
     LFRFIDWorkerReadTypePSKOnly,
+    LFRFIDWorkerReadTypeRTFOnly,
 } LFRFIDWorkerReadType;
 
 typedef enum {
-    LFRFIDWorkerReadSenseStart, // TODO: not implemented
-    LFRFIDWorkerReadSenseEnd, // TODO: not implemented
+    LFRFIDWorkerReadSenseStart, // TODO FL-3516: not implemented
+    LFRFIDWorkerReadSenseEnd, // TODO FL-3516: not implemented
     LFRFIDWorkerReadSenseCardStart,
     LFRFIDWorkerReadSenseCardEnd,
     LFRFIDWorkerReadStartASK,
     LFRFIDWorkerReadStartPSK,
+    LFRFIDWorkerReadStartRTF,
+    LFRFIDWorkerReadSenseHitag, //TODO combine with sense carstart?
     LFRFIDWorkerReadDone,
 } LFRFIDWorkerReadResult;
 
