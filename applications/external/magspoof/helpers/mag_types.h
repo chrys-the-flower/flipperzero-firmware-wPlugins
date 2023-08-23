@@ -37,6 +37,7 @@ typedef enum {
     MagTxCC1101_868,
 } MagTxState;
 
+
 typedef enum {
     UART_TerminalEventRefreshConsoleOutput = 0,
     UART_TerminalEventStartConsole,

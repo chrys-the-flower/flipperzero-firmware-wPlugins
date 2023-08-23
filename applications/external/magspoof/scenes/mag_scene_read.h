@@ -17,4 +17,5 @@ typedef enum {
     UARTEventRxData = 100,
 } UARTEvents;
 
+
 #define WORKER_ALL_RX_EVENTS (WorkerEvtStop | WorkerEvtRxDone)
